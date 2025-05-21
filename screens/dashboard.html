@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Company List</title>
+  <link rel="stylesheet" href="../includes/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+  <link rel="stylesheet" href="../includes/custom/style.css">
+  <script src="../includes/custom/script.js"></script>
+  <script src="../includes/custom/secure.js"></script>
+  <script src="../includes/custom/Url.js"></script>
+</head>
+<body class="bg-light">
+
+<div class="container py-5">
+  <div class="card shadow">
+    <div class="card-header bg-dark text-white">
+      <h4 class="mb-0">Company List</h4>
+    </div>
+    <div class="card-body">
+      <div class="row g-2 mb-3">
+        <div class="col-md-9">
+          <input type="text" id="newCompanyInput" class="form-control" placeholder="Enter company name">
+        </div>
+        <div class="col-md-3">
+          <button class="btn btn-success w-100" onclick="addNewCompany()">Add Company</button>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <input type="text" id="searchInput" class="form-control" placeholder="Search for companies..." onkeyup="searchCompanies()">
+      </div>
+
+      <div class="table-responsive">
+        <div class="d-flex justify-content-between mb-3">
+          <h5 class="mb-0">Company List</h5>
+          <button class="btn btn-info" onclick="getCompanies()">
+            <i class="fas fa-sync-alt"></i> Refresh
+          </button>
+        </div>
+        <table class="table table-bordered table-striped">
+          <thead class="table-dark">
+            <tr>
+              <th>#</th>
+              <th>Company Name</th>
+              <th>Status</th>
+              <th>Actions</th>
+              <th>Go to App</th>
+            </tr>
+          </thead>
+          <tbody id="companyTableBody">
+            <!-- Data will be dynamically inserted here -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../includes/bootstrap.bundle.min.js"></script>
+<script src="../includes/sweetalert.min.js"></script>
+<script src="../includes/jquery-3.2.1.js"></script>
+<script>
+
+
+function getCompanies() {
+    const companyTableBody = document.getElementById('companyTableBody');
+    companyTableBody.innerHTML = '';
+
+    $.ajax({
+        url: getCompanyUrl,
+        type: 'POST',
+        contentType: 'application/json',
+        success: function(data) {
+            if (data.status) {
+                const companies = data.companies;
+
+                // Separate active and deleted companies
+                const activeCompanies = companies.filter(c => !c.isDeleted);
+                const deletedCompanies = companies.filter(c => c.isDeleted);
+
+                // Combine them: active first, deleted later
+                const sortedCompanies = [...activeCompanies, ...deletedCompanies];
+
+                sortedCompanies.forEach((company, index) => {
+                    const statusBadge = company.isDeleted
+                        ? '<span class="badge bg-danger">Deleted</span>'
+                        : '<span class="badge bg-success">Active</span>';
+
+                    const actionBtn = company.isDeleted
+                        ? ''
+                        : `<button class="btn btn-sm btn-danger" onclick="deleteCompany('${company.id}')">Delete</button>`;
+
+                    const goBtn = company.isDeleted
+                        ? ''
+                        : `<button class="btn btn-sm btn-primary" onclick="goToCompany(${company.id})">
+                                <i class="fas fa-arrow-right"></i> Go
+                          </button>`;
+
+                    const row = `
+                        <tr>
+                            <td>${index + 1}.</td>
+                            <td>${company.name}</td>
+                            <td>${statusBadge}</td>
+                            <td>${actionBtn}</td>
+                            <td>${goBtn}</td>
+                        </tr>
+                    `;
+
+                    companyTableBody.innerHTML += row;
+                });
+            } else {
+                companyTableBody.innerHTML = `<tr><td colspan="5">${data.message}</td></tr>`;
+            }
+        },
+
+        error: function(xhr, status, error) {
+            console.error('Error fetching companies:', error);
+            companyTableBody.innerHTML = '<tr><td colspan="5">Failed to load companies.</td></tr>';
+        }
+    });
+}
+
+function addNewCompany() {
+    const input = document.getElementById('newCompanyInput');
+    const companyName = input.value.trim();
+
+    if (companyName) {
+        $.ajax({
+            url: addCompanyUrl,
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ companyName: companyName }),
+            success: function(response) {
+                if (response.status === false) {
+                    swal('Error', response.message, 'error');
+                } else {
+                    swal('Success', response.message, 'success');
+                    getCompanies();
+                    document.getElementById('newCompanyInput').value = "";
+                }
+            },
+            error: function(xhr, status, error) {
+                swal('Error', 'Something went wrong!', 'error');
+            }
+        });
+    } else {
+        swal('Please enter a company name.');
+    }
+}
+
+function deleteCompany(companyId) {
+
+    if (companyId) {
+        $.ajax({
+            url: deleteCompanyUrl,
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ companyId: companyId }),
+            success: function(response) {
+                if (response.status === false) {
+                    swal('Error', response.message, 'error');
+                } else {
+                    swal('Success', response.message, 'success');
+                    getCompanies();
+                }
+            },
+            error: function(xhr, status, error) {
+                swal('Error', 'Something went wrong!', 'error');
+            }
+        });
+    } else {
+        swal('Please enter a company name.');
+    }
+}
+
+
+
+function goToCompany(companyId) {
+    window.location.href = `./company.html?id=${companyId}`;
+}
+
+  function searchCompanies() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const rows = document.querySelectorAll('#companyTableBody tr');
+
+    rows.forEach(row => {
+      const companyName = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+      row.style.display = companyName.includes(searchTerm) ? '' : 'none';
+    });
+  }
+
+  getCompanies();
+</script>
+
+</body>
+</html>
